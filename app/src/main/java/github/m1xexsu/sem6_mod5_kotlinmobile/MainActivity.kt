@@ -1,259 +1,183 @@
 package github.m1xexsu.sem6_mod5_kotlinmobile
 
+import android.Manifest
+import android.content.ContentValues
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+  import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import github.m1xexsu.sem6_mod5_kotlinmobile.ui.theme.Sem6_mod5_kotlinmobileTheme
+import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileInputStream
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private const val PREVIEW_CHARS = 40
-
-data class NoteItem(
-    val fileName: String,
-    val title: String,
-    val content: String,
-    val modifiedAt: Long
-)
-
-object Screens {
-    const val List = "list"
-    const val New = "new"
-    const val Edit = "edit/{file_name}"
-
-    fun editRoute(fileName: String): String = "edit/${Uri.encode(fileName)}"
-}
-
-class DiaryViewModel(private val filesDir: File) : ViewModel() {
-    private val _notes = mutableStateOf<List<NoteItem>>(emptyList())
-    val notes = _notes
-
-    init {
-        // Полный скан директории только один раз при запуске VM.
-        _notes.value = loadAllNotesOnce().sortedByDescending { it.modifiedAt }
-    }
-
-    fun createNote(title: String, content: String) {
-        val fileName = buildFileName(title)
-        val file = File(filesDir, fileName)
-        file.writeText(packNote(title, content))
-
-        val created = readOne(file)
-        _notes.value = listOf(created) + _notes.value
-    }
-
-    fun updateNote(fileName: String, title: String, content: String) {
-        val file = File(filesDir, fileName)
-        if (!file.exists()) return
-
-        file.writeText(packNote(title, content))
-        val updated = readOne(file)
-
-        _notes.value = _notes.value.map { note ->
-            if (note.fileName == fileName) updated else note
-        }
-    }
-
-    fun deleteNote(fileName: String) {
-        val file = File(filesDir, fileName)
-        if (file.exists()) {
-            file.delete()
-        }
-
-        _notes.value = _notes.value.filterNot { it.fileName == fileName }
-    }
-
-    fun findByFileName(fileName: String): NoteItem? =
-        _notes.value.firstOrNull { it.fileName == fileName }
-
-    private fun loadAllNotesOnce(): List<NoteItem> {
-        return filesDir.listFiles()
-            ?.filter { it.isFile && it.name.endsWith(".txt") }
-            ?.map { readOne(it) }
-            .orEmpty()
-    }
-
-    private fun readOne(file: File): NoteItem {
-        val lines = file.readLines()
-        val title = lines.firstOrNull().orEmpty()
-        val body = if (lines.size > 1) lines.drop(1).joinToString("\n") else ""
-
-        return NoteItem(
-            fileName = file.name,
-            title = title,
-            content = body,
-            modifiedAt = file.lastModified()
-        )
-    }
-
-    private fun packNote(title: String, content: String): String {
-        return title.trim() + "\n" + content
-    }
-
-    private fun buildFileName(title: String): String {
-        val timestamp = System.currentTimeMillis()
-        val safeTitle = title.trim()
-            .lowercase()
-            .replace(Regex("[^a-z0-9_\\-]+"), "_")
-            .trim('_')
-            .take(40)
-
-        return if (safeTitle.isBlank()) {
-            "${timestamp}.txt"
-        } else {
-            "${timestamp}_${safeTitle}.txt"
-        }
-    }
-
-    class Factory(private val filesDir: File) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return DiaryViewModel(filesDir) as T
-        }
-    }
-}
-
 class MainActivity : ComponentActivity() {
-    private val viewModel: DiaryViewModel by viewModels {
-        DiaryViewModel.Factory(filesDir)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             Sem6_mod5_kotlinmobileTheme {
-                DiaryApp(viewModel)
+                GalleryApp()
             }
         }
     }
 }
 
-@Composable
-private fun DiaryApp(viewModel: DiaryViewModel) {
-    val navController = rememberNavController()
+data class PhotoItem(
+    val file: File
+)
 
-    NavHost(
-        navController = navController,
-        startDestination = Screens.List,
-        modifier = Modifier
-            .fillMaxSize()
-            .systemBarsPadding()
-    ) {
-        composable(Screens.List) {
-            MainScreen(
-                notes = viewModel.notes.value,
-                onCreateNew = { navController.navigate(Screens.New) },
-                onOpen = { fileName -> navController.navigate(Screens.editRoute(fileName)) },
-                onDelete = { fileName -> viewModel.deleteNote(fileName) }
-            )
-        }
-
-        composable(Screens.New) {
-            EditorScreen(
-                initialTitle = "",
-                initialContent = "",
-                onSave = { title, content ->
-                    viewModel.createNote(title, content)
-                    navController.popBackStack()
-                },
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(
-            route = Screens.Edit,
-            arguments = listOf(navArgument("file_name") { type = NavType.StringType })
-        ) { entry ->
-            val fileName = entry.arguments?.getString("file_name")?.let(Uri::decode) ?: return@composable
-            val note = viewModel.findByFileName(fileName)
-
-            if (note == null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Запись не найдена")
-                }
-            } else {
-                EditorScreen(
-                    initialTitle = note.title,
-                    initialContent = note.content,
-                    onSave = { title, content ->
-                        viewModel.updateNote(fileName, title, content)
-                        navController.popBackStack()
-                    },
-                    onBack = { navController.popBackStack() }
-                )
-            }
-        }
-    }
-}
-
+@Preview(showSystemUi = true)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainScreen(
-    notes: List<NoteItem>,
-    onCreateNew: () -> Unit,
-    onOpen: (String) -> Unit,
-    onDelete: (String) -> Unit
-) {
+private fun GalleryApp() {
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    val picturesDir = remember {
+        context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+            ?: context.filesDir
+    }
+
+    var photos by remember { mutableStateOf(scanPhotos(picturesDir)) }
+    var pendingCaptureUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedPhoto by remember { mutableStateOf<PhotoItem?>(null) }
+    var photoToExportAfterPermission by remember { mutableStateOf<PhotoItem?>(null) }
+
+    val captureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            photos = scanPhotos(picturesDir)
+        } else {
+            pendingCaptureUri?.let { uri ->
+                runCatching { context.contentResolver.delete(uri, null, null) }
+            }
+        }
+        pendingCaptureUri = null
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            pendingCaptureUri = createOutputUri(context, picturesDir)
+            pendingCaptureUri?.let { captureLauncher.launch(it) }
+        } else {
+            scope.launch { snackbarHostState.showSnackbar("Разрешение CAMERA не выдано") }
+        }
+    }
+
+    val writePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val photo = photoToExportAfterPermission
+        photoToExportAfterPermission = null
+        if (!granted || photo == null) {
+            scope.launch { snackbarHostState.showSnackbar("Экспорт недоступен без разрешения") }
+            return@rememberLauncherForActivityResult
+        }
+
+        if (exportPhotoToGallery(context, photo.file)) {
+            scope.launch { snackbarHostState.showSnackbar("Фото добавлено в галерею") }
+        } else {
+            scope.launch { snackbarHostState.showSnackbar("Не удалось экспортировать фото") }
+        }
+    }
+
+    fun requestTakePhoto() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            pendingCaptureUri = createOutputUri(context, picturesDir)
+            pendingCaptureUri?.let { captureLauncher.launch(it) }
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    fun requestExport(photo: PhotoItem) {
+        val requiresLegacyWrite = Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
+        if (!requiresLegacyWrite || ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            if (exportPhotoToGallery(context, photo.file)) {
+                scope.launch { snackbarHostState.showSnackbar("Фото добавлено в галерею") }
+            } else {
+                scope.launch { snackbarHostState.showSnackbar("Не удалось экспортировать фото") }
+            }
+            return
+        }
+
+        photoToExportAfterPermission = photo
+        writePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+    }
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Дневник") }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            FloatingActionButton(onClick = onCreateNew) {
-                Icon(Icons.Default.Add, contentDescription = "Новая запись")
+            FloatingActionButton(onClick = ::requestTakePhoto) {
+                Text("+")
             }
         }
     ) { padding ->
-        if (notes.isEmpty()) {
+        if (photos.isEmpty()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -262,29 +186,20 @@ private fun MainScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(
-                    text = "У вас пока нет записей",
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = "Нажмите +, чтобы создать первую",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                Text("У вас пока нет фото", style = MaterialTheme.typography.titleMedium)
             }
         } else {
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .padding(4.dp)
             ) {
-                items(notes, key = { it.fileName }) { note ->
-                    NoteRow(
-                        note = note,
-                        onOpen = { onOpen(note.fileName) },
-                        onDelete = { onDelete(note.fileName) }
+                items(photos, key = { it.file.absolutePath }) { item ->
+                    PhotoGridCell(
+                        item = item,
+                        onExport = { requestExport(item) }
                     )
                 }
             }
@@ -292,52 +207,38 @@ private fun MainScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun NoteRow(
-    note: NoteItem,
-    onOpen: () -> Unit,
-    onDelete: () -> Unit
+private fun PhotoGridCell(
+    item: PhotoItem,
+    onExport: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onClick = onOpen,
-                onLongClick = { menuExpanded = true }
-            )
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(4.dp)
+            .size(120.dp)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(12.dp)
+            .clickable(onClick = { menuExpanded = true } )
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                val header = if (note.title.isBlank()) "Без заголовка" else note.title
-                Text(
-                    text = header,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = formatDate(note.modifiedAt),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
+        val bitmap = remember(item.file.absolutePath, item.file.lastModified()) {
+            BitmapFactory.decodeFile(item.file.absolutePath)
+        }
 
-            Text(
-                text = buildPreview(note.content),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 6.dp)
+        bitmap?.let {
+            Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = item.file.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
             )
+        }
+
+        IconButton(
+            onClick = { menuExpanded = true },
+            modifier = Modifier.align(Alignment.TopEnd)
+        ) {
+            Text("...")
         }
 
         DropdownMenu(
@@ -345,84 +246,66 @@ private fun NoteRow(
             onDismissRequest = { menuExpanded = false }
         ) {
             DropdownMenuItem(
-                text = { Text("Удалить") },
+                text = { Text("Экспорт в галерею") },
                 onClick = {
                     menuExpanded = false
-                    onDelete()
+                    onExport()
                 }
             )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun EditorScreen(
-    initialTitle: String,
-    initialContent: String,
-    onSave: (String, String) -> Unit,
-    onBack: () -> Unit
-) {
-    var title by remember(initialTitle) { mutableStateOf(initialTitle) }
-    var content by remember(initialContent) { mutableStateOf(initialContent) }
+private fun scanPhotos(dir: File): List<PhotoItem> {
+    return dir.listFiles()
+        ?.filter { it.isFile && it.extension.equals("jpg", ignoreCase = true) }
+        ?.sortedByDescending { it.lastModified() }
+        ?.map { PhotoItem(file = it) }
+        .orEmpty()
+}
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("Запись") }) }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-        ) {
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("Заголовок (опционально)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+private fun createOutputUri(context: Context, picturesDir: File): Uri {
+    if (!picturesDir.exists()) {
+        picturesDir.mkdirs()
+    }
 
-            OutlinedTextField(
-                value = content,
-                onValueChange = { content = it },
-                label = { Text("Текст записи") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(top = 12.dp),
-                minLines = 10
-            )
+    val fileName = "IMG_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.jpg"
+    val file = File(picturesDir, fileName)
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Button(
-                    onClick = { onSave(title, content) },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Сохранить")
-                }
-                Button(
-                    onClick = onBack,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Назад")
+    return FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.provider",
+        file
+    )
+}
+
+private fun exportPhotoToGallery(context: Context, sourceFile: File): Boolean {
+    val resolver = context.contentResolver
+    val name = sourceFile.name
+
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, name)
+        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+        }
+    }
+
+    val targetUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+
+    return runCatching {
+        var copied = false
+        FileInputStream(sourceFile).use { input ->
+            resolver.openOutputStream(targetUri).use { output: OutputStream? ->
+                if (output != null) {
+                    input.copyTo(output)
+                    copied = true
                 }
             }
         }
+        copied
+    }.getOrElse {
+        resolver.delete(targetUri, null, null)
+        false
     }
-}
-
-private fun buildPreview(text: String): String {
-    val clean = text.trim().replace("\n", " ")
-    return if (clean.length <= PREVIEW_CHARS) clean else clean.take(PREVIEW_CHARS) + "..."
-}
-
-private fun formatDate(timeMillis: Long): String {
-    val formatter = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
-    return formatter.format(Date(timeMillis))
 }
