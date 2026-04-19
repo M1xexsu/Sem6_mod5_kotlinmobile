@@ -1,4 +1,4 @@
-package github.m1xexsu.sem6_mod5_kotlinmobile.ui.theme
+package com.example.todolist.ui.theme
 
 import android.app.Activity
 import android.os.Build
@@ -34,7 +34,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun Sem6_mod5_kotlinmobileTheme(
+fun TodolistTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,

@@ -1,4 +1,4 @@
-package github.m1xexsu.sem6_mod5_kotlinmobile.ui.theme
+package com.example.todolist.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
