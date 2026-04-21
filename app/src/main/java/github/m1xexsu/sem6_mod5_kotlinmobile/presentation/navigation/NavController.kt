@@ -29,7 +29,9 @@ fun NavController(
                 onTodoClick = { id -> navController.navigate("detail/$id") },
                 onToggle = viewModel::toggletodo,
                 onTodoRemove = viewModel::nuketodo,
-                onTodoCreate = { navController.navigate("NEW") }
+                onTodoCreate = { navController.navigate("NEW") },
+                isColored = viewModel::state.get().value,
+                onIsColoredChange = viewModel::setpreferences,
             )
         }
 

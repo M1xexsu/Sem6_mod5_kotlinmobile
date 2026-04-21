@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-04-21T06:40:56.043570998Z">
+        <DropdownSelection timestamp="2026-04-21T06:44:47.729903018Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=/home/leepy/.android/avd/Small_Phone.avd" />
+              <DeviceId pluginId="Default" identifier="serial=192.168.240.112:5555;connection=9ad29bf2" />
             </handle>
           </Target>
         </DropdownSelection>

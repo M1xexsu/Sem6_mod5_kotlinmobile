@@ -36,10 +36,11 @@ fun TodoListScreen(
     onTodoClick: (Int) -> Unit,
     onToggle: (Int) -> Unit,
     onTodoRemove: (Int) -> Unit,
-    onTodoCreate: () -> Unit
+    onTodoCreate: () -> Unit,
+    isColored: Boolean,
+    onIsColoredChange: (Boolean) -> Unit
 ) {
     val todolist by todos
-    var isColored by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier
@@ -51,7 +52,7 @@ fun TodoListScreen(
                 actions = {
                     Switch(
                         checked = isColored,
-                        onCheckedChange = { checked -> isColored = checked },
+                        onCheckedChange = { onIsColoredChange(it) },
                         modifier = Modifier.padding(start = 8.dp)
                     )
                 }
@@ -97,6 +98,8 @@ fun PreviewTodoList() {
         onTodoClick = {},
         onToggle = {},
         onTodoCreate = {},
-        onTodoRemove = {}
+        onTodoRemove = {},
+        isColored = true,
+        onIsColoredChange = {}
     )
 }
